@@ -12,6 +12,7 @@ With an open specification it will be possible to create services for automatic 
 ## Data Product structure
 
 The Data Product is composed by a general section with Data Product level information and four sub-structures describing components:
+* **Input Ports**: representing all the different input datasources  of the Data Product to consume by the workloads 
 * **Output Ports**: representing all the different interfaces of the Data Product to expose the data to consumers
 * **Workloads**: internal jobs/processes to feed the Data Product and to perform housekeeping (GDPR, regulation, audit, data quality, etc)
 * **Storage Areas**: internal data storages where the Data Product is deployed, not exposed to consumers
@@ -49,6 +50,53 @@ The fixed structure must be technology-agnostic. The first fields of teh fixed s
 
 The **unique identifier** of a Data Product is the concatenation of Domain, Name and Version. So we will refer to the `DP_UK` as a URN which ends in the following way: `$DPDomain:$DPName:$DPMajorVersion`.
 
+
+### Input Ports
+
+* `ID: [String]*` the unique identifier of the Input Port component. This will never change in the life of a Data Product or the component itself.
+  Constraints:
+  * allowed characters are `[a-zA-Z0-9]` and `[_-]`.
+  * the ID is a URN of the form `urn:dmb:cmp:$DPDomain:$DPName:$DPMajorVersion:$InputPortName`.
+* `Name: [String]*` the name of the Input Port. This name is used also for display purposes, so it can contain all kind of characters. When used inside the Input Port ID all special characters are replaced with standard ones and spaces are replaced with dashes.
+* `FullyQualifiedName: [Option[String]]` human-readable name that describes better the Input Port. It can also contain specific details (if this is a table this field could contain also indications regarding the database and the schema).
+* `Description: [String]` detailed explanation about the function and the meaning of the Input port.
+* `Kind: [String]*` type of the entity. Since this is an Output Port the only allowed value is `inputport`.
+* `Version: [String]*` specific version of the Input port. Displayed as `X.Y.Z` where X is the major version of the Data Product, Y is the minor feature and Z is the patch. Major version (X) is also shown in the component ID and those fields( version and ID) are always aligned with one another. Please note that the major version of the component *must always* correspond to the major version of the Data Product it belongs to.
+Constraints:
+  * Major version of the Data Product is always the same as the major version of all of its components, and it is the same version that is shown in both Data Product ID and component ID.
+* `InfrastructureTemplateId: [String]*` the id of the microservice responsible for provisioning the component. A microservice may be capable of provisioning several components generated from different use case templates. 
+* `UseCaseTemplateId: [Option[String]]*` the id of the template used in the builder to create the component. Could be empty in case the component was not created from a builder template.
+* `DependsOn: [Array[String]]*` A component could depend on other components belonging to the same Data Product, for example a SQL Output port could be dependent on a Raw Output Port because it is just an external table. This is also used to define the provisioning order among components.
+Constraints:
+  * This array will only contain IDs of other components of the same Data Product.
+* `Platform: [Option[String]]` represents the vendor: Azure, GCP, AWS, CDP on AWS, etc. It is a free field, but it is useful to understand better the platform where the component will be running.
+* `Technology: [Option[String]]` represents which technology is used to define the Input port, like: ADLS, postgres, oracle , SQL server,kafka  etc. The underlying technology is useful for the consumer to understand better how to consume the output port.
+* `InputPortType: [String]` the kind of Input port: Files, SQL, Events, etc. This should be extensible with other values, like GraphQL or others.
+* `CreationDate: [Optional[String]]` when this Input port has been created.
+* `StartDate: [Optional[String]]` the first business date present in the dataset, leave it empty for events, or we can use some standard semantic like: "-7D, -1Y".
+* `ProcessDescription: [Option[String]]` what is the underlying process that contributes to consume the data exposed by this Input port.
+* `DataContract: [Yaml]`: In case something is going to change in this section, it represents a breaking change because the producer is breaking the contract, this will require to create a new version of the data product to keep backward compatibility
+  * `Schema: [Array[Yaml]]` when it comes to describe a schema we propose to leverage [OpenMetadata specification](https://docs.open-metadata.org/v1.0.0/main-concepts/metadata-standard/schemas/entity/data/table#definitions). Each column can have a tag array, and you can choose between simples LabelTags, ClassificationTags or DescriptiveTags. Here an example of classification Tag https://github.com/open-metadata/OpenMetadata/blob/main/openmetadata-service/src/main/resources/json/data/tags/piiTags.json.
+  * `SLA: [Yaml]` Service Level Agreement, describe the quality of data delivery and the output port in general. It represents the producer's overall promise to the consumers.
+    * `IntervalOfChange: [Option[String]]` how often changes in the data are reflected.
+    * `Timeliness: [Option[String]]` the skew between the time that a business fact occurs and when it becomes visibile in the data.
+    * `UpTime: [Option[String]]` the percentage of port availability.
+  * `TermsAndConditions: [Option[String]]` If the data is usable only in specific environments.
+  * `Endpoint: [Option[URL]]` this is the API endpoint that self-describe the Input port and provide insightful information at runtime about the physical location of the data, the protocol must be used, etc.
+  * `biTempBusinessTs: [Option[String]]` name of the field representing the business timestamp, as per the "bi-temporality" definition; it should match with a field in the related `Schema`
+  * `biTempWriteTs: [Option[String]]` name of the field representing the technical (write) timestamp, as per the "bi-temporality" definition; it should match with a field in the related `Schema`
+* `DataSharingAgreement: [Yaml]` This part is covering usage, privacy, purpose, limitations and is independent by the data contract.
+  * `Purpose: [Option[String]]` what is the goal of this data set.
+  * `Billing: [Option[String]]` how a consumer will be charged back when it consumes this output port.
+  * `Security: [Option[String]]` additional information related to security aspects, like restrictions, masking, sensibile information and privacy.
+  * `IntendedUsage: [Option[String]]` any other information needed by the consumer in order to effectively consume the data, it could be related to technical stuff (e.g. extract no more than one year of data for good performances ) or to business domains (e.g. this data is only useful in the marketing domains).
+  * `Limitations: [Option[String]]` If any limitation is present it must be made super clear to the consumers.
+  * `LifeCycle: [Option[String]]` Describe how the data will be historicized and how and when it will be deleted.
+  * `Confidentiality: [Option[String]]` Describe what a consumer should do to keep the information confidential, how to process and store it. Permission to share or report it.
+* `Tags: [Array[Yaml]]` Tag labels at OutputPort level, here we can have security classification for example (please refer to [OpenMetadata documentation](https://docs.open-metadata.org/v1.0.0/main-concepts/metadata-standard/schemas/type/taglabel)).
+* `SampleData: [Option[Yaml]]` provides a sample data of your Input Port (please refer to [OpenMetadata specification](https://docs.open-metadata.org/v1.0.0/main-concepts/metadata-standard/schemas/entity/data/table#properties)).
+* `SemanticLinking: [Option[Yaml]]` here we can express semantic relationships between this output port and other outputports (also coming from other domains and data products). For example, we could say that column "customerId" of our SQL Output Port references the column "id" of the SQL Output Port of the "Customer" Data Product.
+* `Specific: [Yaml]` this is a custom section where we must put all the information strictly related to a specific technology or dependent from a standard/policy defined in the federated governance.
 
 ### Output Ports
 
